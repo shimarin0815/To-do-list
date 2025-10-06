@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>シンプルTodo | ローカル保存付き</title>
+  <meta name="description" content="単一HTMLファイルで動くシンプルTodo。タスクの追加・削除・完了、LocalStorage保存。中学生でも読める丁寧コメント付き。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* =====================
+       ベースの見た目（モダン＆やさしい）
+       ===================== */
+    :root{
+      --bg1: #eef2f3;        /* 明るいグレー */
+      --bg2: #dfe9f3;        /* ほんのりブルー */
+      --card: rgba(255,255,255,0.75);
+      --card-strong: rgba(255,255,255,0.95);
+      --text: #0f172a;       /* ダークネイビー */
+      --muted: #64748b;      /* ミュート文字 */
+      --accent: #6c5ce7;     /* パープル */
+      --accent-2: #00c2ff;   /* シアン */
+      --ring: rgba(108,92,231,0.35);
+      --danger: #ef4444;     /* 赤 */
+      --ok: #10b981;         /* 緑 */
+      --shadow: 0 10px 30px rgba(2,6,23,0.10);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', 'Yu Gothic UI', 'Yu Gothic', Meiryo, sans-serif;
+      color: var(--text);
+      background: linear-gradient(135deg, var(--bg1), var(--bg2));
+      display: grid; place-items: center;
+    }
+
+    .app {
+      width: min(760px, 94vw);
+      margin: 32px auto;
+      background: var(--card);
+      backdrop-filter: saturate(160%) blur(10px);
+      border: 1px solid rgba(255,255,255,0.6);
+      box-shadow: var(--shadow);
+      border-radius: calc(var(--radius) + 8px);
+      overflow: hidden;
+    }
+
+    header {
+      padding: 28px 24px 16px;
+      background: linear-gradient(135deg, rgba(108,92,231,0.12), rgba(0,194,255,0.12));
+      border-bottom: 1px solid rgba(255,255,255,0.6);
+    }
+    header h1 {
+      margin: 0 0 6px;
+      font-size: clamp(22px, 4vw, 28px);
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    header p { margin: 0; color: var(--muted); }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      padding: 16px 24px 20px;
+      background: var(--card-strong);
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+    input[type="text"]{
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(15,23,42,0.10);
+      outline: none;
+      font-size: 16px;
+      background: white;
+      transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    input[type="text"]:focus{
+      border-color: var(--accent);
+      box-shadow: 0 0 0 6px var(--ring);
+    }
+
+    .btn {
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid rgba(15,23,42,0.08);
+      background: linear-gradient(180deg, #ffffff, #f6f7fb);
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform .03s ease, box-shadow .2s ease, border-color .2s;
+      box-shadow: 0 4px 14px rgba(2,6,23,0.08);
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary{
+      background: linear-gradient(180deg, #7b6df5, #6558e8);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.3);
+      box-shadow: 0 6px 18px rgba(108,92,231,0.35);
+    }
+    .btn-pill { border-radius: 999px; }
+
+    .controls {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; padding: 14px 24px; flex-wrap: wrap;
+      background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7));
+      border-bottom: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .filters { display: flex; gap: 8px; }
+    .filter-btn{
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 14px;
+      border: 1px solid rgba(15,23,42,0.08);
+      background: #fff;
+      cursor: pointer;
+    }
+    .filter-btn.is-active{
+      background: linear-gradient(180deg, #e9ecff, #ffffff);
+      border-color: rgba(108,92,231,0.45);
+      box-shadow: 0 4px 12px rgba(108,92,231,0.25);
+    }
+
+    .count { color: var(--muted); font-size: 14px; }
+
+    ul#todo-list{ list-style: none; margin: 0; padding: 10px 12px 18px; }
+
+    .item{
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      margin: 8px 0;
+      background: white;
+      border: 1px solid rgba(15,23,42,0.06);
+      border-radius: 14px;
+      box-shadow: 0 6px 16px rgba(2,6,23,0.06);
+      transition: transform .06s ease, box-shadow .2s ease;
+    }
+    .item:hover { box-shadow: 0 10px 24px rgba(2,6,23,0.10); }
+
+    .item input[type="checkbox"]{
+      width: 20px; height: 20px; cursor: pointer;
+    }
+
+    .title{
+      font-size: 16px; line-height: 1.4;
+    }
+    .title.done{ color: #9aa4b2; text-decoration: line-through; }
+
+    .icon-btn{
+      width: 36px; height: 36px; display: grid; place-items: center;
+      border-radius: 10px; border: 1px solid rgba(15,23,42,0.08);
+      background: linear-gradient(180deg, #ffffff, #f6f7fb);
+      cursor: pointer;
+      transition: transform .03s ease, box-shadow .2s ease;
+    }
+    .icon-btn:active{ transform: translateY(1px); }
+    .icon-btn.delete:hover{ border-color: rgba(239,68,68,0.45); box-shadow: 0 8px 18px rgba(239,68,68,0.25); }
+
+    .empty{
+      margin: 24px; padding: 16px 18px;
+      border-radius: 12px;
+      background: linear-gradient(180deg, #ffffff, #f7fafc);
+      border: 1px dashed rgba(15,23,42,0.14);
+      color: var(--muted);
+      text-align: center;
+    }
+
+    footer{
+      padding: 14px 24px 22px;
+      color: var(--muted);
+      font-size: 12px;
+      display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+    }
+    .badge{ padding: 6px 10px; border-radius: 999px; background: #fff; border:1px solid rgba(15,23,42,0.08); }
+
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg1: #0f172a; --bg2: #1e293b;
+        --card: rgba(17,24,39,0.55);
+        --card-strong: rgba(17,24,39,0.75);
+        --text: #e5e7eb; --muted: #94a3b8;
+      }
+      input[type="text"], .item, .btn, .icon-btn{ background: #0b1220; color: #e5e7eb; border-color: rgba(255,255,255,0.12); }
+      .item{ box-shadow: 0 6px 16px rgba(0,0,0,0.25); }
+      .empty{ background: #0b1220; border-color: rgba(255,255,255,0.12); }
+      .filter-btn{ background: #0b1220; color: #e5e7eb; border-color: rgba(255,255,255,0.12); }
+      .filter-btn.is-active{ background: linear-gradient(180deg, rgba(108,92,231,0.15), rgba(108,92,231,0.06)); }
+      .btn-primary{ border-color: rgba(255,255,255,0.18); }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" role="application" aria-label="シンプルTodoアプリ">
+    <header>
+      <h1>✅ シンプルTodo</h1>
+      <p>追加・完了・削除ができて、ブラウザに自動保存されます。</p>
+    </header>
+
+    <section class="form-row">
+      <form id="todo-form" autocomplete="off" style="display: contents">
+        <label for="todo-input" class="sr-only">やることを入力</label>
+        <input id="todo-input" type="text" placeholder="やること（例：英語の宿題を15分）" required minlength="1" maxlength="120" />
+        <button class="btn btn-primary btn-pill" aria-label="タスクを追加">追加</button>
+      </form>
+    </section>
+
+    <div class="controls">
+      <div class="filters" role="tablist" aria-label="表示を切り替え">
+        <button class="filter-btn is-active" data-filter="all" role="tab" aria-selected="true">すべて</button>
+        <button class="filter-btn" data-filter="active" role="tab">未完了</button>
+        <button class="filter-btn" data-filter="completed" role="tab">完了</button>
+      </div>
+      <div class="count" id="count">0件</div>
+    </div>
+
+    <ul id="todo-list" aria-live="polite"></ul>
+
+    <div class="empty" id="empty" hidden>やることはまだありません。上の入力欄から追加してみましょう！</div>
+
+    <footer>
+      <span class="badge">LocalStorage に自動保存</span>
+      <small>ヒント: 右上のフィルターで表示を切り替えできます。</small>
+    </footer>
+  </main>
+
+  <script>
+    // =============================
+    // 中学生でも読めるやさしいコード解説つき
+    // =============================
+    // ▼ このアプリがやること
+    // 1) 入力されたタスクを「配列(ならんだ箱)」に追加する
+    // 2) チェックで完了/未完了を切り替えられる
+    // 3) ゴミ箱ボタンで削除できる
+    // 4) 画面を閉じても残るように LocalStorage(ブラウザのメモ帳) に保存する
+
+    // ---- 基本の準備 ----
+    const storageKey = 'simple-todo-v1'; // LocalStorage にしまう時の名前
+    let tasks = []; // タスクのならんだ箱(配列)。 { id, title, completed } の形で入れるよ
+    let currentFilter = 'all'; // 表示の種類: all | active | completed
+
+    // 大事な部品(=DOM要素)を手に取る
+    const form = document.getElementById('todo-form');
+    const input = document.getElementById('todo-input');
+    const list = document.getElementById('todo-list');
+    const count = document.getElementById('count');
+    const empty = document.getElementById('empty');
+    const filterButtons = document.querySelectorAll('.filter-btn');
+
+    // ---- LocalStorage から読み込む ----
+    function load(){
+      const raw = localStorage.getItem(storageKey);
+      tasks = raw ? JSON.parse(raw) : [];
+    }
+
+    // ---- LocalStorage に保存する ----
+    function save(){
+      localStorage.setItem(storageKey, JSON.stringify(tasks));
+    }
+
+    // ---- 画面に表示する(=レンダー) ----
+    function render(){
+      let visible = tasks;
+      if(currentFilter === 'active'){
+        visible = tasks.filter(t => !t.completed);
+      }else if(currentFilter === 'completed'){
+        visible = tasks.filter(t => t.completed);
+      }
+
+      empty.hidden = visible.length !== 0 || tasks.length !== 0 ? true : false;
+      if(tasks.length === 0){ empty.hidden = false; }
+
+      list.innerHTML = visible.map(t => `
+        <li class="item" data-id="${t.id}">
+          <input type="checkbox" ${t.completed ? 'checked' : ''} aria-label="完了切替" />
+          <span class="title ${t.completed ? 'done' : ''}">${escapeHTML(t.title)}</span>
+          <button class="icon-btn delete" aria-label="削除">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M3 6h18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M8 6v-1a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M10 10v8M14 10v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </li>
+      `).join('');
+
+      const remaining = tasks.filter(t => !t.completed).length;
+      count.textContent = `${remaining}件 未完了`;
+
+      filterButtons.forEach(btn => {
+        const active = btn.dataset.filter === currentFilter;
+        btn.classList.toggle('is-active', active);
+        btn.setAttribute('aria-selected', String(active));
+      });
+    }
+
+    // ---- タスクを追加する ----
+    function addTask(title){
+      const trimmed = title.trim();
+      if(!trimmed) return;
+      const task = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+        title: trimmed,
+        completed: false,
+        createdAt: Date.now()
+      };
+      tasks.push(task);
+      save();
+      render();
+    }
+
+    // ---- 完了チェックの切替 ----
+    function toggleTask(id){
+      const t = tasks.find(t => t.id === id);
+      if(t){ t.completed = !t.completed; save(); render(); }
+    }
+
+    // ---- タスクを削除 ----
+    function deleteTask(id){
+      tasks = tasks.filter(t => t.id !== id);
+      save();
+      render();
+    }
+
+    // ---- ユーティリティ: HTMLエスケープ ----
+    function escapeHTML(str){
+      const map = {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"};
+      return String(str).replace(/[&<>"']/g, ch => map[ch]);
+    }
+
+    // ---- イベント(=できごと)の係を配置 ----
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      addTask(input.value);
+      input.value = '';
+      input.focus();
+    });
+
+    list.addEventListener('click', (e) => {
+      const li = e.target.closest('.item');
+      if(!li) return;
+      const id = li.dataset.id;
+      if(e.target.closest('.delete')){
+        deleteTask(id);
+      }
+    });
+
+    list.addEventListener('change', (e) => {
+      if(e.target.matches('input[type="checkbox"]')){
+        const id = e.target.closest('.item').dataset.id;
+        toggleTask(id);
+      }
+    });
+
+    filterButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentFilter = btn.dataset.filter;
+        render();
+      });
+    });
+
+    // ---- アプリの起動 ----
+    load();
+    render();
+
+    // =============================
+    // 簡易テスト（ユニット&統合）
+    // 実行方法: URLの末尾に #test を付けて開くと、状態を壊さずに追加テストを実行します。
+    // 例: file:///.../todo.html#test
+    // =============================
+    (function(){
+      function assertEqual(actual, expected, msg){
+        const a = JSON.stringify(actual);
+        const e = JSON.stringify(expected);
+        if(a !== e){ throw new Error((msg||'assertEqual') + `\n expected: ${e}\n   actual: ${a}`); }
+      }
+      console.groupCollapsed('✅ SimpleTodo Tests');
+      try{
+        // --- escapeHTML ユニットテスト ---
+        assertEqual(escapeHTML('A&B<>"'), 'A&amp;B&lt;&gt;&quot;', 'escapeHTML basic');
+        assertEqual(escapeHTML('hello'), 'hello', 'escapeHTML no-op');
+        assertEqual(escapeHTML('<script>alert("x")</' + 'script>'), '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;', 'escapeHTML script like');
+        assertEqual(escapeHTML(`He said 'hi' & "yo" <x>`), 'He said &#39;hi&#39; &amp; &quot;yo&quot; &lt;x&gt;', 'escapeHTML quotes mixed');
+        assertEqual(escapeHTML(`'"><img src=x onerror=1>`), '&#39;&quot;&gt;&lt;img src=x onerror=1&gt;', 'escapeHTML injection-like');
+
+        // --- 状態テスト（#test の時だけ） ---
+        if(location.hash.includes('test')){
+          const backup = { tasks: JSON.parse(JSON.stringify(tasks)), raw: localStorage.getItem(storageKey) };
+          try{
+            tasks = []; save(); render();
+            const before = tasks.length; addTask('   '); assertEqual(tasks.length, before, 'ignore whitespace-only');
+            addTask('alpha'); addTask('beta'); addTask('gamma');
+            assertEqual(tasks.length, 3, 'addTask count');
+
+            const firstId = tasks[0].id; toggleTask(firstId);
+            assertEqual(tasks[0].completed, true, 'toggleTask works');
+
+            const delId = tasks[1].id; deleteTask(delId);
+            assertEqual(tasks.length, 2, 'deleteTask count');
+            assertEqual(Boolean(tasks.find(t=>t.id===delId)), false, 'deleteTask removed correct item');
+
+            currentFilter = 'completed'; render();
+            let expected = tasks.filter(t=>t.completed).length;
+            assertEqual(Array.from(list.querySelectorAll('.item')).length, expected, 'render respects completed filter');
+            currentFilter = 'active'; render();
+            expected = tasks.filter(t=>!t.completed).length;
+            assertEqual(Array.from(list.querySelectorAll('.item')).length, expected, 'render respects active filter');
+          } finally {
+            tasks = backup.tasks; localStorage.setItem(storageKey, backup.raw); render();
+          }
+          console.log('Stateful tests: PASSED (ran with #test)');
+        } else {
+          console.log('Stateful tests: SKIPPED (add #test to URL to run)');
+        }
+        console.log('All tests: PASSED');
+      }catch(err){
+        console.error('Test FAILED:', err);
+      }finally{
+        console.groupEnd();
+      }
+    })();
+  </script>
+</body>
+</html>
